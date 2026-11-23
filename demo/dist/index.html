@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#222521">
+<meta name="description" content="Explore a single replenishment decision and the CA_1 M5 inventory simulation.">
+<title>Stockdesk · M5 Inventory Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style3.css">
+<script defer src="study-data.js"></script>
+<script defer src="replay.js"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5V17l-9 4-9-4V7.5Z M3 7.5l9 4.5 9-4.5M12 12v9M7.6 5.2l9 4.5"/></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 9v11M8 3v4M16 3v4"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16M8 16v-4m5 4V9m5 7V6"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-9v.1"/></symbol>
+<symbol id="i-truck" viewBox="0 0 24 24"><path d="M2 6h12v11H2zM14 9h4l4 4v4h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+<symbol id="i-basket" viewBox="0 0 24 24"><path d="M3 10h18l-2 10H5L3 10Zm4 0 3-6m7 6-3-6m-4 10v3m4-3v3"/></symbol>
+<symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 6v6h6m-5-1a8 8 0 1 1 1 6"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+</svg>
+<div class="shell">
+  <a class="skip" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <a href="#desk" class="brand" aria-label="Stockdesk home">
+      <span class="brand-mark"><svg class="icon"><use href="#i-box"/></svg></span>
+      <span>Stockdesk<span class="brand-sub">M5 INVENTORY LAB</span></span>
+    </a>
+    <nav aria-label="Main navigation" class="navigation">
+      <span class="nav-label">WORKSPACE</span>
+      <a href="#desk" data-view="desk" aria-current="page"><svg class="icon"><use href="#i-board"/></svg>Order desk</a>
+      <a href="#results" data-view="results"><svg class="icon"><use href="#i-chart"/></svg>Study results</a>
+      <a href="#guide" data-view="guide"><svg class="icon"><use href="#i-info"/></svg>How it works</a>
+    </nav>
+    <div class="side-foot">
+      <div class="store-sign"><span class="store-icon"><svg class="icon"><use href="#i-box"/></svg></span><span><b>CA_1</b><small>California store</small></span></div>
+      <div class="side-run"><span></span>Historical simulation</div>
+    </div>
+  </aside>
+  <main id="main" tabindex="-1">
+    <header class="topline">
+      <span class="breadcrumb">Inventory <span aria-hidden="true">/</span> <strong id="current-view">Order desk</strong></span>
+      <span class="study-date">M5 <span></span> APRIL 2016</span>
+    </header>
+
+    <section id="desk" class="page" aria-labelledby="desk-title">
+      <div class="page-heading">
+        <div><h1 id="desk-title">The order desk<span>.</span></h1><p>Make one stocking decision, then see what happens when customers arrive.</p></div>
+        <button id="reset" class="secondary"><svg class="icon"><use href="#i-reset"/></svg>Reset replay</button>
+      </div>
+      <div id="public-replay-note" class="insight" hidden></div>
+      <div class="filters" aria-label="Replay settings">
+        <label>Item<select id="sku"></select></label>
+        <label>Lead time<select id="lead"><option value="7">7 days</option><option value="1">1 day</option></select></label>
+        <label>Forecast<select id="model"></select></label>
+        <div class="filter-date"><span class="review-label">Review day <small id="review-progress"></small></span><strong><time id="review-date"></time></strong></div>
+      </div>
+      <div class="kpis" aria-label="Current decision">
+        <article><div class="kpi-label"><svg class="icon"><use href="#i-box"/></svg>Available now</div><div class="kpi-value" id="available"></div><small>After today’s arrivals</small></article>
+        <article><div class="kpi-label"><svg class="icon"><use href="#i-truck"/></svg>Still on order</div><div class="kpi-value" id="outstanding"></div><small>Firm receipts due later</small></article>
+        <article><div class="kpi-label"><svg class="icon"><use href="#i-target"/></svg>Stock target</div><div class="kpi-value" id="target"></div><small id="target-caption"></small></article>
+        <article class="order-kpi"><div class="kpi-label"><svg class="icon"><use href="#i-basket"/></svg>Suggested order</div><div class="kpi-value" id="suggestion"></div><small>Target less inventory position</small></article>
+      </div>
+      <div class="desk-grid">
+        <section class="card history" aria-labelledby="history-title">
+          <div class="card-head"><div><h2 id="history-title">Recent sales</h2><p id="history-caption">Daily units recorded before the current review.</p></div><span id="item-regime" class="tag"></span></div>
+          <div id="sales-chart" class="chart-host"></div>
+          <div class="chart-foot"><span><i></i> <span id="history-label">Recorded units</span></span><span id="history-range"></span></div>
+        </section>
+        <section class="card decision" aria-labelledby="decision-title">
+          <div class="card-head"><div><h2 id="decision-title">Your decision</h2><p id="decision-caption">Choose how many units to order.</p></div></div>
+          <div id="decision-entry">
+            <div class="switch" role="group" aria-label="Order entry mode">
+              <button id="suggested-mode" aria-pressed="true">Use suggestion</button>
+              <button id="manual-mode" aria-pressed="false">Manual</button>
+            </div>
+            <form id="order-form">
+              <label for="quantity">Order quantity</label>
+              <div class="stepper">
+                <button type="button" id="minus" aria-label="Remove one unit">−</button>
+                <input id="quantity" type="number" min="0" max="1000000" step="1" inputmode="numeric" value="0" required>
+                <button type="button" id="plus" aria-label="Add one unit">+</button>
+              </div>
+              <button class="primary" type="submit">Run review day</button>
+            </form>
+            <p class="arrival" id="arrival"></p>
+          </div>
+          <div id="day-result" hidden>
+            <div class="outcome" id="day-outcome" aria-live="polite"></div>
+            <button id="next-day" class="primary" type="button">Next day</button>
+          </div>
+        </section>
+      </div>
+      <section class="card ledger" aria-labelledby="ledger-title">
+        <div class="card-head"><div><h2 id="ledger-title">Replay log</h2><p id="ledger-summary">Completed reviews will appear here.</p></div></div>
+        <div id="ledger-wrap" class="scroll-table" hidden><table><thead><tr><th>Date</th><th>Received</th><th>Ordered</th><th>Demand</th><th>Filled</th><th>Lost</th><th>Ending stock</th></tr></thead><tbody id="ledger-body"></tbody></table></div>
+      </section>
+    </section>
+
+    <section id="results" class="page" aria-labelledby="results-title" hidden>
+      <div class="page-heading"><div><h1 id="results-title">Study results<span>.</span></h1><p>Compare cost and service after fixing the rules on earlier dates.</p></div></div>
+      <div class="filters result-filters">
+        <label>Lead time<select id="result-lead"><option value="7">7 days</option><option value="1">1 day</option></select></label>
+        <label>Demand regime<select id="regime"><option value="All">All items</option><option>Stable</option><option>Volatile</option><option>Intermittent</option></select></label>
+        <label>Replay window<select id="phase"><option value="final_cutover">April · common opening</option><option value="final_continuous">April · continuous</option><option value="policy_validation">Policy validation</option></select></label>
+      </div>
+      <div id="results-callout" class="insight"></div>
+      <section class="card result-chart" aria-labelledby="comparison-title">
+        <div class="card-head"><div><h2 id="comparison-title">Cost versus unit fill</h2><p id="comparison-caption"></p></div></div>
+        <div class="chart-host comparison-plot">
+          <div id="comparison-chart"></div>
+          <ul id="chart-key" class="chart-key" aria-label="Chart legend"></ul>
+        </div>
+      </section>
+      <section class="card ledger" aria-labelledby="policy-title">
+        <div class="card-head"><div><h2 id="policy-title">Policy comparison</h2><p>Base cost assumptions. Service-floor status refers to the full CA_1 cohort on validation.</p></div></div>
+        <div class="scroll-table"><table><thead><tr><th>Forecast</th><th>Rule</th><th>Unit fill</th><th>Lost units</th><th>Mean stock</th><th>Cost</th><th>Validated</th></tr></thead><tbody id="policy-body"></tbody></table></div>
+      </section>
+    </section>
+
+    <section id="guide" class="page" aria-labelledby="guide-title" hidden>
+      <div class="page-heading"><div><h1 id="guide-title">How it works<span>.</span></h1><p>Follow the forecast from expected demand to a purchase recommendation.</p></div></div>
+      <div class="guide-grid">
+        <article class="card"><h2>Review inventory</h2><p>Receipts due today become available first. The inventory position adds available stock and firm receipts still due later.</p><code>Position = available + still on order</code></article>
+        <article class="card"><h2>Choose an order</h2><p>A daily review uses a target covering the lead time plus one day. The suggested order fills the gap in whole units.</p><code>Order = round up max(0, target − position)</code></article>
+        <article class="card"><h2>Reveal recorded sales</h2><p>Orders arrive after the lead time. Any recorded units above available stock count as lost in the replay. They do not carry over.</p><code>Unit fill = filled units ÷ recorded units</code></article>
+        <article class="card"><h2>Compare the study</h2><p>The results use 3,049 CA_1 items. Policy settings were selected before April. Lower simulated cost matters alongside achieved service. A higher forecast quantile does not promise the same fill rate.</p><a class="secondary inline" href="#results">Open study results</a></article>
+      </div>
+      <div class="insight"><strong>Scope.</strong> M5 provides recorded sales, calendar information and listed prices. Stock, lost demand and costs in this demo come from a simulation. <span id="guide-replay-scope">The worked replay uses three teaching items.</span> Manual decisions change your simulated inventory. The historical sales path is fixed.</div>
+    </section>
+
+    <footer><span>Stockdesk</span><span>M5 recorded sales proxy · Simulated inventory and cost</span></footer>
+    <noscript><p class="level-error">Enable JavaScript to run the Stockdesk replay.</p></noscript>
+    <div id="app-error" class="level-error" role="alert" hidden>Stockdesk could not load the verified replay data.</div>
+  </main>
+</div>
+</body>
+</html>
+

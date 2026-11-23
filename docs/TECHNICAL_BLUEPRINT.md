@@ -1,0 +1,59 @@
+# M5 Forecast to Stock: technical glossary and mathematical blueprint
+
+This contract covers three parts. Part 1 implements audited data and training-only demand regimes. The model, simulator and batch scoring formulas specify later parts.
+
+## Data and decision clock
+
+A **SKU** identifies a product. A **series** is one product at one store. Let $y_{i,s,t}$ be integer units recorded as sold for SKU $i$, store $s$, and day $t$. M5 gives recorded sales, a calendar and listed weekly selling prices. It lacks the usable stock, lost demand, order ledger and acquisition costs needed to reconstruct actual Walmart inventory. Zero observed sales do not identify zero demand. A missing price is null, with a separate flag. The historical experiment uses sales as a demand proxy. [Official M5 guide](https://storage.googleapis.com/kaggle-forum-message-attachments/772349/15032/M5-Competitors-Guide-Final-10-March-2020.pdf) · [Demand censoring](https://doi.org/10.1287/opre.2014.1326)
+
+A **key** identifies one row: $(s,i)$ in wide sales, $d$ and date in the calendar, and $(s,i,w)$ in prices for week $w$. A **left join** preserves every expected item-day, even without a matching price.
+
+The **origin** $t_0$ is the last completed sales day. The buyer reviews before sales on day $r=t_0+1$. The **horizon** $h$ is the number of days after origin. A daily target is $y_{i,s,t_0+h}$, $h=1,\ldots,8$. A **cumulative target** is $D_{i,s,t_0,H}=\sum_{h=1}^H y_{i,s,t_0+h}$ for $H=2,8$. A **direct forecast** predicts each requested target without feeding forecasts back as features.
+
+## Features and zero leakage
+
+An **as-of feature** is available by the origin. Define $\mathrm{lag}_k(t_0)=y_{t_0-k}$, including $\mathrm{lag}_0=y_{t_0}$. For a trailing window $w$, define the mean $\bar y_w=w^{-1}\sum_{j=0}^{w-1}y_{t_0-j}$, sample standard deviation $s_w=\sqrt{\sum_{j=0}^{w-1}(y_{t_0-j}-\bar y_w)^2/(w-1)}$, and zero share $z_w=w^{-1}\sum_{j=0}^{w-1}\mathbf 1[y_{t_0-j}=0]$. **Days since sale** is $t_0-\max\{u\le t_0:y_u>0\}$, with a missing value and a flag if no sale has been observed.
+
+**Origin sell price** is the latest positive listed price in a week with week end $\le t_0$; week end is a conservative availability proxy because M5 provides no publication timestamps. Retain the source week and price age. Relative price change is $p_{\text{as-of}}/p_{\text{previous eligible}}-1$, undefined if either price is unavailable. Do not use realized target-week price. Target-date weekday, month, event and store-state SNAP use the published calendar as a schedule assumed known in advance.
+
+For a **label block** $[a,b]$, a cumulative target is eligible only when $a\le t_0+1$ and $t_0+H\le b$. For daily targets, require $a\le t_0+h\le b$. **Leakage** includes any input or fitted design choice using observations unavailable at its designated stage. Part 1 checks time coverage and perturbs later sales to prove the regime stage ignores them. Part 2 will check source eligibility, perturb future sales and prices, test sparse origins by key, and disallow targets that cross stage boundaries. Calendar-only dates are future covariates, never observed labels.
+
+## Demand regimes
+
+**Intermittency** means that sales occur on relatively few days. Start the active-history proxy at the first positive sale **within training**. If it has $n$ days and $n_+$ positive days, define zero share $z=n^{-1}\sum_t\mathbf 1[y_t=0]$ and average demand interval $\mathrm{ADI}=n/n_+$ as a diagnostic. Also report zero share over the full training interval. **Positive-sales volatility** is $\mathrm{CV}_+^2=(s_+/\bar y_+)^2$, based on the sample standard deviation and mean of strictly positive sales. It is undefined when fewer than two positives exist.
+
+Assign **Intermittent** if active zero share is at least 0.60 or there are fewer than two positive days. Otherwise assign **Volatile** if positive-sales $\mathrm{CV}^2$ is at least 0.49 and **Stable** otherwise. Flag insufficient evidence separately. No positive sale leaves active zero share undefined and full training zero share equal to 1. Starting from the first positive sale is a modeling convention, not a known launch date. This three-class rule is inspired by intermittent-demand work, not the original four-class ADI scheme. [Syntetos, Boylan and Croston](https://doi.org/10.1057/palgrave.jors.2601841)
+
+## Forecasts and metrics
+
+**Point forecasts** predict one value. Last observation uses $\hat y_h=y_{t_0}$. Seasonal naïve repeats the previous week: $\hat y_h=y_{t_0-6+((h-1)\bmod7)}$. Moving average uses $\hat y_h=\bar y_{28}$. Sum daily point forecasts for cumulative point targets.
+
+**Croston** separately smooths positive-sale size $z_j$ and interval $p_j$ at positive event $j$: $Z_j=\gamma z_j+(1-\gamma)Z_{j-1}$ and $P_j=\gamma p_j+(1-\gamma)P_{j-1}$. Initialize with the first positive size and elapsed observed days to that event. State is unchanged on zero days. Croston forecasts $Z_j/P_j$. **SBA** forecasts $(1-\gamma/2)Z_j/P_j$ to reduce Croston's upward bias. Use zero before the first positive event. For probabilistic baseline comparisons, use earlier empirical quantiles of the cumulative forecast error and add them to the baseline point forecast. [Syntetos and Boylan](https://doi.org/10.1016/j.ijforecast.2004.10.001)
+
+A **conditional quantile** is $Q_\alpha(x)=\inf\{q:F(q\mid x)\ge\alpha\}$. LightGBM will fit quantile objectives for $\alpha\in\{0.50,0.75,0.90,0.95\}$, with one model per alpha in a direct daily family and another in a cumulative family, using horizon as a feature. Enforce nonnegative, nondecreasing predictions by clipping at zero and then sorting each quantile vector. Evaluate after that step. The median $Q_{.50}$ is not a mean. **Do not sum marginal daily quantiles** to obtain a cumulative quantile. [Spiliotis et al., 2021](https://doi.org/10.1016/j.ijpe.2021.108237) · [Wellens et al., online 2024](https://pure.tue.nl/ws/portalfiles/portal/338317972/1-s2.0-S0377221724005289-main.pdf)
+
+Let $N$ be the number of eligible targets and $e_j=y_j-\hat y_j$. **MAE** is $N^{-1}\sum |e_j|$ in units. **RMSE** is $\sqrt{N^{-1}\sum e_j^2}$ in units. **RMSSE** is $\sqrt{\overline{e^2}/\overline{(\Delta y_{\rm train})^2}}$. Compute the training scale starting with the first difference after the first positive sale. A zero or absent scale produces an undefined score and a reported count. This is item-level RMSSE, not the official weighted hierarchy score. MAPE divides by realized sales and is undefined on zero days.
+
+For $u=y-\hat Q_\alpha$, **pinball loss** is $\rho_\alpha(u)=\alpha\max(u,0)+(1-\alpha)\max(-u,0)$. Higher quantiles penalize underprediction more. **Scaled pinball loss (SPL)** is $\overline{\rho_\alpha}/\overline{|\Delta y_{\rm train}|}$. Use the same post-first-sale convention, with separately reported zero scales. For cumulative targets, scale using first differences of training-only totals over complete $H$-day windows and label that extension separately. **Coverage** reports $\Pr(Y<\hat Q_\alpha)$ and $\Pr(Y\le\hat Q_\alpha)$ to distinguish count-data ties. [Official M5 uncertainty scoring](https://doi.org/10.1016/j.ijforecast.2021.10.009)
+
+## Inventory, service, economics and inference
+
+The **review period** is $R=1$ day. **Lead time** $L=1,7$ is the number of calendar days from purchase to receipt. An order on review day $r$ arrives before demand on $r+L$. The next review's order arrives on $r+L+1$, so the **protection period** is $H=R+L=2,8$ days, starting on $r$.
+
+Let $I_r^-$ be available stock after morning receipts and $P_r$ be unreceived firm orders. **Inventory position** $IP_r=I_r^-+P_r$, with no backorders. An **order-up-to** policy orders $Q_r=\lceil\max(0,S_r-IP_r)\rceil$. A residual-buffer policy chooses $S_r=\hat D_H+B_\alpha$ with **safety stock** $B_\alpha=\max(0,Q_\alpha(D_H-\hat D_H))$ estimated from earlier complete errors. A direct quantile policy uses $S_r=\hat Q_\alpha(D_H)$. **Fulfilled sales** are $F_r=\min(I_r^-,D_r)$, **lost units** $U_r=D_r-F_r$, and **ending stock** $I_r=I_r^--F_r$. In historical replay $D_r=y_r$.
+
+**Unit fill** is $\sum_r F_r/\sum_r D_r$, undefined with no demand. **Stockout-day rate** is $\sum_r\mathbf 1[U_r>0]/N_{\rm days}$. **Cycle service** is the fraction of explicitly defined nonoverlapping cycles without lost units. These are distinct from the probability level of a demand quantile. **Mean stock** is $\sum_r I_r/N_{\rm days}$. One **stock unit-day** is one unit held for one day.
+
+Using a pre-evaluation selling price $p_i$, margin fraction $m_i$ and annual carry rate $r_a$, estimated acquisition value is $c_i=(1-m_i)p_i$, daily holding $h_i=r_a c_i/365$, and lost-unit penalty $b_i=m_i p_i$ before a scenario multiplier. These are price-anchored scenario assumptions. **Total modeled cost** is $\sum_{i,r}(h_i I_{i,r}+b_i U_{i,r}+k_i\mathbf 1[Q_{i,r}>0])$ plus any declared terminal adjustment, where $k_i$ is a fee per positive item order. Report ending stock and pipeline even without a terminal charge.
+
+The **newsvendor critical fractile** $\tau^\star=C_u/(C_u+C_o)$ minimizes expected linear one-period underage and overage costs. For this study use $C_u=b_i$ and a horizon holding proxy $C_o=Hh_i$ for a candidate policy, with $b_i/(b_i+h_i)$ as its one-day special case. That rule neither gives the optimum for repeated reviews with positive lead time and lost sales nor guarantees 95% unit fill. Interpolate only within trained alphas. Clip outside that range and report truncation. Use earlier replay to select settings. [Lost-sales policy caveat](https://doi.org/10.1287/opre.1070.0471)
+
+A **cost–fill Pareto frontier** contains outcomes for which no tested policy has both lower-or-equal cost and higher-or-equal fill, with one comparison strict. Separate fixed-path repricing from policy reselection. A **crossed comparison** holds the forecast or buffer fixed while changing the other. A **cutover replay** starts candidates from the same incumbent stock and pipeline. A continuous replay gives each candidate the state it created earlier. Neither estimates real Walmart savings. [Theodorou et al., 2025](https://doi.org/10.1016/j.ejor.2024.12.033) · [Goltsos et al., 2022](https://doi.org/10.1016/j.ejor.2021.07.040)
+
+**Batch inference** reads an as-of snapshot and immutable model bundle and produces order suggestions for review. A **run manifest** records inputs, configuration, versions and outputs. **Drift** means a change from the training or calibration reference. Later monitoring will check data freshness, missing prices, positive incidence, after-label forecast bias and quantile coverage, and observed inventory service if the retailer supplies the required records.
+
+### Worked replenishment decision
+
+At Monday close, suppose the model's 95th percentile for Tuesday and Wednesday combined is 20 units. On Tuesday morning, eight units carry over and four units arrive, giving 12 usable units. With no additional outstanding shipments, the inventory position is 12 and the buyer orders eight units. With a one-day lead, that purchase arrives Wednesday before demand. If Tuesday demand is 15 units, Tuesday fills 12 and loses three. Unit fill for Tuesday is 80%. The 0.95 quantile applies to an uncertain two-day sum and 80% measures realized units served on Tuesday.
+
+For an item selling at \$4 with a 25% margin and a 20% annual carry rate, $c=\$3$, $h\approx\$0.00164$ per stock unit-day and $b=\$1$ per lost unit before sensitivity multipliers. The requested one-day critical fractile is $b/(b+h)\approx0.9984$, and the eight-day overage proxy gives $b/(b+8h)\approx0.9870$. Both exceed the trained $0.95$ quantile. Under the configured tail convention the replay uses $0.95$ in both examples and records the clipping. That is a concrete limit of the requested quantile grid.

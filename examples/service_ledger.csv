@@ -1,0 +1,4 @@
+store_id,item_id,date,demand,fulfilled,lost
+CA_1,FOODS_1_001,2016-04-24,5,5,0
+CA_1,FOODS_1_002,2016-04-24,3,2,1
+CA_1,FOODS_1_003,2016-04-24,0,0,0

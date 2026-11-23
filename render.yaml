@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: stockdesk-m5
+    runtime: static
+    buildCommand: node demo/build-site.mjs
+    staticPublishPath: ./demo/site-build
+    envVars:
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+

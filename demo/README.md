@@ -17,3 +17,5 @@ node demo/test.mjs
 
 The exporter reads frozen forecast and inventory artifacts and reconstructs the common April opening stock. Its static output contains three teaching SKUs and aggregate results across all 3,049 CA_1 items. It checks the input artifact hashes and includes Python totals for checking the browser simulator. The site data and layout can be deployed from `dist/`.
 
+
+GitHub clones include a synthetic replay for hosting. To build it, run `node demo/build-site.mjs` and serve the resulting site-build directory. Reproduce the M5 project artifacts and run the Python demo data exporter before opening or testing the original local replay. See the [GitHub deployment guide](../docs/GITHUB_HOSTING.md).

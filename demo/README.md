@@ -1,5 +1,7 @@
 # Stockdesk
 
+Live: https://stockdesk-m5.onrender.com/
+
 This static demo lets a visitor make a simulated replenishment decision for three CA_1 teaching SKUs and inspect the all-item study results. It has no API or database. Browser decisions stay in the current tab.
 
 From the project root, open `demo/dist/index.html` or serve the static directory.

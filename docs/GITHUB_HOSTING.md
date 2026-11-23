@@ -27,6 +27,7 @@ To keep fresh notebook outputs local in another checkout, configure the supplied
 
 ```sh
 git config filter.stockdesk-notebook.clean 'python3 tools/strip_notebook_outputs.py'
+git config filter.stockdesk-notebook.smudge cat
 git config filter.stockdesk-notebook.required true
 ```
 
